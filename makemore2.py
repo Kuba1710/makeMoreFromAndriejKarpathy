@@ -43,11 +43,11 @@ Xdev, Ydev = build_dataset(words[n1:n2])
 Xte, Yte = build_dataset(words[n2:])
 
 g = torch.Generator().manual_seed(2147483647)
-C = torch.randn((27,2), generator=g)
+C = torch.randn((27,10), generator=g)
 #print(C[X][13,2]) # dlaczego to sie rowna C[1]? bo index w 13 wierszu i 2 kolumnie wynosi 1 --> i mapujemy to do wartosci C pod indexem 1 to jest nasza lookup table
-W1 = torch.randn((6, 100), generator=g, requires_grad=True)
-b1 = torch.randn(100, generator=g,requires_grad=True)
-W2 = torch.randn((100, 27), generator=g, requires_grad=True)
+W1 = torch.randn((30, 200), generator=g, requires_grad=True)
+b1 = torch.randn(200, generator=g,requires_grad=True)
+W2 = torch.randn((200, 27), generator=g, requires_grad=True)
 b2 = torch.randn(27, generator=g, requires_grad=True)
 parameters = [W1, b1, W2, b2]
 
@@ -57,12 +57,12 @@ lrs = 10**lre
 lri = []
 lossi = []
 
-for i in range(10000):
+for i in range(50000):
 
   #minibatch
   ix = torch.randint(0, Xtr.shape[0], (32,))
   emb = C[Xtr[ix]] # (32,3,2)
-  h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32,100)
+  h = torch.tanh(emb.view(-1, 30) @ W1 + b1) # (32,100)
   logits = h @ W2 + b2 # (32, 27)
 
   ### this is the same what F.cross_entropy()
@@ -89,8 +89,27 @@ print(loss.item())
 #plt.show()
 
 emb = C[Xdev] # (32, 3, 2)
-h = torch.tanh(emb.view(-1, 6) @ W1 + b1) # (32, 100)
+h = torch.tanh(emb.view(-1, 30) @ W1 + b1) # (32, 100)
 logits = h @ W2 + b2 # (32, 27)
 loss = F.cross_entropy(logits, Ydev)
 loss
 print(loss.item())
+
+g = torch.Generator().manual_seed(2147483647 + 10)
+
+for _ in range(20):
+    
+    out = []
+    context = [0] * block_size # initialize with all ...
+    while True:
+      emb = C[torch.tensor([context])] # (1,block_size,d)
+      h = torch.tanh(emb.view(1, -1) @ W1 + b1)
+      logits = h @ W2 + b2
+      probs = F.softmax(logits, dim=1)
+      ix = torch.multinomial(probs, num_samples=1, generator=g).item()
+      context = context[1:] + [ix]
+      out.append(ix)
+      if ix == 0:
+        break
+    
+    print(''.join(itos[i] for i in out))
